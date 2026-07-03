@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>รวมไฟล์ภาษีขาย (Sales Tax Combiner)</title>
+<script src="xlsx.full.min.js"></script>
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --card: #ffffff;
+    --border: #d9dce1;
+    --text: #1f2430;
+    --muted: #6b7280;
+    --accent: #2563eb;
+    --accent-hover: #1d4ed8;
+    --danger: #dc2626;
+    --ok: #16a34a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Segoe UI", "Tahoma", "Noto Sans Thai", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 32px 16px;
+  }
+  .container { max-width: 860px; margin: 0 auto; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  p.sub { color: var(--muted); margin-top: 0; margin-bottom: 24px; font-size: 14px; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+  .dropzone {
+    border: 2px dashed var(--border);
+    border-radius: 10px;
+    padding: 40px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  .dropzone.drag { border-color: var(--accent); background: #eff4ff; }
+  .dropzone .icon { font-size: 32px; margin-bottom: 8px; }
+  .dropzone .hint { color: var(--muted); font-size: 13px; margin-top: 4px; }
+  input[type=file] { display: none; }
+  .filelist { margin-top: 18px; }
+  .filelist-header {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 13px; color: var(--muted); margin-bottom: 8px;
+  }
+  ul.files { list-style: none; padding: 0; margin: 0; max-height: 320px; overflow-y: auto; }
+  ul.files li {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 10px; border-bottom: 1px solid #eef0f2; font-size: 13px;
+  }
+  ul.files li:last-child { border-bottom: none; }
+  ul.files li .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  ul.files li .status { font-size: 12px; margin-left: 8px; flex-shrink: 0; }
+  ul.files li .status.ok { color: var(--ok); }
+  ul.files li .status.err { color: var(--danger); }
+  ul.files li button.remove {
+    border: none; background: none; color: var(--muted); cursor: pointer; font-size: 14px;
+    margin-left: 10px; flex-shrink: 0;
+  }
+  ul.files li button.remove:hover { color: var(--danger); }
+  .actions { display: flex; align-items: center; gap: 12px; margin-top: 20px; }
+  button.primary {
+    background: var(--accent); color: white; border: none; border-radius: 8px;
+    padding: 11px 22px; font-size: 14px; cursor: pointer; font-weight: 600;
+  }
+  button.primary:hover { background: var(--accent-hover); }
+  button.primary:disabled { background: #a9b6cc; cursor: not-allowed; }
+  button.secondary {
+    background: none; border: 1px solid var(--border); border-radius: 8px;
+    padding: 11px 18px; font-size: 14px; cursor: pointer; color: var(--text);
+  }
+  button.secondary:hover { border-color: var(--muted); }
+  #log {
+    font-family: Consolas, monospace; font-size: 12.5px; white-space: pre-wrap;
+    background: #0f1117; color: #d8e0f0; border-radius: 8px; padding: 14px;
+    max-height: 260px; overflow-y: auto; margin-top: 16px; display: none;
+  }
+  .summary { font-size: 13px; color: var(--muted); margin-top: 10px; }
+  .badge {
+    display: inline-block; background: #eef2ff; color: var(--accent);
+    border-radius: 999px; padding: 2px 10px; font-size: 12px; font-weight: 600;
+  }
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(15,17,23,.5);
+    align-items: center; justify-content: center; z-index: 1000; padding: 16px;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal {
+    background: var(--card); border-radius: 12px; width: 100%; max-width: 520px;
+    max-height: 85vh; display: flex; flex-direction: column; overflow: hidden;
+    box-shadow: 0 10px 40px rgba(0,0,0,.25);
+  }
+  .modal-header {
+    display: flex; align-items: center; gap: 10px; padding: 18px 22px;
+    border-bottom: 1px solid var(--border);
+  }
+  .modal-header h2 { font-size: 16px; margin: 0; }
+  .spinner {
+    width: 16px; height: 16px; border-radius: 50%;
+    border: 2px solid var(--border); border-top-color: var(--accent);
+    animation: spin .7s linear infinite; flex-shrink: 0;
+  }
+  .modal-header .check { color: var(--ok); font-size: 18px; display: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .modal-body { padding: 18px 22px; overflow-y: auto; }
+  #modalLog {
+    font-family: Consolas, monospace; font-size: 12.5px; white-space: pre-wrap;
+    background: #0f1117; color: #d8e0f0; border-radius: 8px; padding: 14px;
+    max-height: 280px; overflow-y: auto;
+  }
+  #modalSummary { font-size: 13px; color: var(--muted); margin-top: 14px; display: none; white-space: pre-line; }
+  .modal-footer {
+    padding: 14px 22px; border-top: 1px solid var(--border);
+    display: flex; justify-content: flex-end;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>รวมไฟล์รายงานภาษีขาย</h1>
+  <p class="sub">ลากไฟล์ .xls / .xlsx จากโฟลเดอร์ "ภาษีขาย" มาวางด้านล่าง แล้วกด Export เพื่อรวมข้อมูลทุกไฟล์เป็นไฟล์ Excel เดียว
+    <br/>
+    <span style="color: red;">* การประมวลผลทั้งหมดจะทำในเบราว์เซอร์ของผู้ใช้งานเท่านั้น! ไม่มีการอัปโหลดข้อมูลไปที่อื่น</span>
+  </p>
+
+  <div class="card">
+    <div class="dropzone" id="dropzone">
+      <div class="icon">📂</div>
+      <div>ลากไฟล์มาวางที่นี่ หรือคลิกเพื่อเลือกไฟล์</div>
+      <div class="hint">รองรับ .xls และ .xlsx หลายไฟล์พร้อมกัน</div>
+      <input type="file" id="fileInput" multiple accept=".xls,.xlsx">
+    </div>
+
+    <div class="filelist" id="filelistWrap" style="display:none;">
+      <div class="filelist-header">
+        <span>ไฟล์ที่เพิ่มแล้ว: <span class="badge" id="fileCount">0</span></span>
+        <button class="secondary" id="clearBtn" style="padding:5px 12px;font-size:12px;">ล้างทั้งหมด</button>
+      </div>
+      <ul class="files" id="fileList"></ul>
+    </div>
+
+    <div class="actions">
+      <button class="primary" id="exportBtn" disabled>Export เป็นไฟล์รวม (.xlsx)</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="spinner" id="modalSpinner"></div>
+      <span class="check" id="modalCheck">✅</span>
+      <h2 id="modalTitle">กำลังประมวลผล...</h2>
+    </div>
+    <div class="modal-body">
+      <div id="modalLog"></div>
+      <div id="modalSummary"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="primary" id="modalDoneBtn" style="display:none;">เสร็จสิ้น</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const COL = { no: 1, date: 3, invoice: 4, name: 7, taxId: 10, fee: 17, vat: 23 };
+
+let files = []; // { file, name (fund code) }
+
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const fileListEl = document.getElementById('fileList');
+const filelistWrap = document.getElementById('filelistWrap');
+const fileCountEl = document.getElementById('fileCount');
+const exportBtn = document.getElementById('exportBtn');
+const clearBtn = document.getElementById('clearBtn');
+const modalOverlay = document.getElementById('modalOverlay');
+const modalTitle = document.getElementById('modalTitle');
+const modalSpinner = document.getElementById('modalSpinner');
+const modalCheck = document.getElementById('modalCheck');
+const modalLog = document.getElementById('modalLog');
+const modalSummary = document.getElementById('modalSummary');
+const modalDoneBtn = document.getElementById('modalDoneBtn');
+
+dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropzone.classList.remove('drag');
+  addFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener('change', e => { addFiles(e.target.files); fileInput.value = ''; });
+clearBtn.addEventListener('click', () => { files = []; renderList(); });
+
+function addFiles(fileListObj) {
+  const incoming = Array.from(fileListObj).filter(f => /\.(xls|xlsx)$/i.test(f.name));
+  const existingNames = new Set(files.map(f => f.file.name));
+  for (const f of incoming) {
+    if (!existingNames.has(f.name)) {
+      files.push({ file: f, fund: f.name.replace(/\.(xls|xlsx)$/i, '') });
+      existingNames.add(f.name);
+    }
+  }
+  renderList();
+}
+
+function removeFile(idx) {
+  files.splice(idx, 1);
+  renderList();
+}
+
+function renderList() {
+  filelistWrap.style.display = files.length ? 'block' : 'none';
+  fileCountEl.textContent = files.length;
+  fileListEl.innerHTML = '';
+  files.forEach((f, idx) => {
+    const li = document.createElement('li');
+    li.innerHTML = `<span class="name">${f.fund}</span>`;
+    const btn = document.createElement('button');
+    btn.className = 'remove';
+    btn.textContent = '✕';
+    btn.onclick = () => removeFile(idx);
+    li.appendChild(btn);
+    fileListEl.appendChild(li);
+  });
+  exportBtn.disabled = files.length === 0;
+}
+
+function log(msg) {
+  modalLog.textContent += msg + '\n';
+  modalLog.scrollTop = modalLog.scrollHeight;
+}
+
+function openModal() {
+  modalTitle.textContent = 'กำลังประมวลผล...';
+  modalSpinner.style.display = 'block';
+  modalCheck.style.display = 'none';
+  modalLog.textContent = '';
+  modalSummary.style.display = 'none';
+  modalSummary.textContent = '';
+  modalDoneBtn.style.display = 'none';
+  modalOverlay.classList.add('show');
+}
+
+function finishModal(summaryText) {
+  modalTitle.textContent = 'เสร็จสิ้น';
+  modalSpinner.style.display = 'none';
+  modalCheck.style.display = 'inline';
+  modalSummary.textContent = summaryText;
+  modalSummary.style.display = 'block';
+  modalDoneBtn.style.display = 'inline-block';
+}
+
+modalDoneBtn.addEventListener('click', () => {
+  modalOverlay.classList.remove('show');
+});
+
+function parseNum(v) {
+  if (v === null || v === undefined) return 0;
+  if (typeof v === 'number') return v;
+  let s = String(v).trim();
+  if (s === '' || s === '-') return 0;
+  s = s.replace(/,/g, '');
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+}
+
+function isDataRow(row) {
+  const noRaw = row[COL.no];
+  if (noRaw === undefined || noRaw === null || String(noRaw).trim() === '') return false;
+  const no = parseInt(String(noRaw).replace(/,/g, ''), 10);
+  if (isNaN(no) || no <= 0) return false;
+  const dateRaw = row[COL.date];
+  if (!dateRaw || !/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(String(dateRaw).trim())) return false;
+  return true;
+}
+
+function round2(n) { return Math.round(n * 100) / 100; }
+
+async function readWorkbookRows(file) {
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, { type: 'array' });
+  const sheet = wb.Sheets[wb.SheetNames[0]];
+  return XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: true });
+}
+
+exportBtn.addEventListener('click', async () => {
+  exportBtn.disabled = true;
+  openModal();
+  log(`เริ่มประมวลผล ${files.length} ไฟล์...`);
+
+  const dataRows = [];
+  const fundTotals = []; // { fund, fee, vat }
+  let okCount = 0, errCount = 0;
+
+  for (const entry of files) {
+    try {
+      const rows = await readWorkbookRows(entry.file);
+      let fee = 0, vat = 0, rowCount = 0;
+      for (const row of rows) {
+        if (!isDataRow(row)) continue;
+        const feeVal = parseNum(row[COL.fee]);
+        const vatVal = parseNum(row[COL.vat]);
+        const total = round2(feeVal + vatVal);
+        const wh = Math.round(feeVal * 0.03);
+        dataRows.push([
+          entry.fund,
+          parseInt(String(row[COL.no]).replace(/,/g, ''), 10),
+          String(row[COL.date]).trim(),
+          row[COL.invoice] !== undefined ? String(row[COL.invoice]).trim() : '',
+          row[COL.name] !== undefined ? String(row[COL.name]).trim() : '',
+          row[COL.taxId] !== undefined ? String(row[COL.taxId]).trim() : '',
+          feeVal,
+          vatVal,
+          total,
+          wh,
+          null
+        ]);
+        fee += feeVal;
+        vat += vatVal;
+        rowCount++;
+      }
+      fundTotals.push({ fund: entry.fund, fee: round2(fee), vat: round2(vat) });
+      log(`✓ ${entry.fund}: ${rowCount} รายการ`);
+      okCount++;
+    } catch (e) {
+      log(`✗ ${entry.fund}: อ่านไฟล์ไม่สำเร็จ (${e.message})`);
+      errCount++;
+    }
+  }
+
+  if (dataRows.length === 0) {
+    log('ไม่พบข้อมูลที่ประมวลผลได้ ยกเลิกการ export');
+    finishModal('ไม่พบข้อมูลที่ประมวลผลได้');
+    exportBtn.disabled = false;
+    return;
+  }
+
+  const grandFee = round2(dataRows.reduce((s, r) => s + r[6], 0));
+  const grandVat = round2(dataRows.reduce((s, r) => s + r[7], 0));
+  const grandTotal = round2(dataRows.reduce((s, r) => s + r[8], 0));
+  const grandWh = dataRows.reduce((s, r) => s + r[9], 0);
+
+  const dataSheetAoA = [
+    ['FUND', 'No.', 'DATE', 1, 'NAME', 2, '  Fee  ', 'VAT 7%', 'Total', '   WH 3%  ', null],
+    ...dataRows,
+    [null, null, null, null, null, null, null, null, null, null, null],
+    [null, null, null, null, null, null, grandFee, grandVat, grandTotal, grandWh, null]
+  ];
+
+  const sumSheetAoA = [
+    ...fundTotals.map(t => [t.fund, t.fee, t.vat, null])
+  ];
+
+  const wbOut = XLSX.utils.book_new();
+  const wsData = XLSX.utils.aoa_to_sheet(dataSheetAoA);
+  const wsSum = XLSX.utils.aoa_to_sheet(sumSheetAoA);
+  XLSX.utils.book_append_sheet(wbOut, wsSum, 'Sum');
+  XLSX.utils.book_append_sheet(wbOut, wsData, 'DATA');
+
+  const now = new Date();
+  const stamp = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`;
+  const outName = `DATA base Fee Combined_${stamp}.xlsx`;
+
+  XLSX.writeFile(wbOut, outName);
+
+  log(`เสร็จสิ้น: อ่านสำเร็จ ${okCount} ไฟล์, ล้มเหลว ${errCount} ไฟล์`);
+  log(`รวมทั้งหมด ${dataRows.length} รายการ | Fee=${grandFee.toLocaleString()} VAT=${grandVat.toLocaleString()} Total=${grandTotal.toLocaleString()} WH=${grandWh.toLocaleString()}`);
+  finishModal(`บันทึกไฟล์ "${outName}" แล้ว \n (${dataRows.length} รายการจาก ${okCount} ไฟล์)`);
+  exportBtn.disabled = false;
+});
+</script>
+</body>
+</html>
