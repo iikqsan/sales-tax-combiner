@@ -122,6 +122,22 @@
     padding: 14px 22px; border-top: 1px solid var(--border);
     display: flex; justify-content: flex-end;
   }
+  .media-gallery {
+    display: flex; justify-content: center; align-items: center;
+    gap: 16px; flex-wrap: wrap; margin: 44px 0 24px;
+  }
+  .media-gallery img,
+  .media-gallery video {
+    width: 280px; max-width: 100%; height: auto;
+    border-radius: 10px; object-fit: cover;
+  }
+  .media-gallery video {
+    width: 430px; height: 410px;
+  }
+  .dev-credit {
+    position: fixed; right: 24px; bottom: 15px; z-index: 1000;
+    font-size: 15px; color: var(--muted); pointer-events: none;
+  }
 </style>
 </head>
 <body>
@@ -151,6 +167,14 @@
     <div class="actions">
       <button class="primary" id="exportBtn" disabled>Export เป็นไฟล์รวม (.xlsx)</button>
     </div>
+  </div>
+</div>
+
+<div>
+  <div class="media-gallery">
+    <img src="img/1669494078803.JPG" alt="IMG_1669494078803">
+    <video src="img/IMG_0451.MP4" autoplay loop muted playsinline></video>
+    <img src="img/1668009049802.JPG" alt="IMG_1668009049802">
   </div>
 </div>
 
@@ -380,5 +404,6 @@ exportBtn.addEventListener('click', async () => {
   exportBtn.disabled = false;
 });
 </script>
+<div class="dev-credit">v.1.0.1 | iikQsan.dev</div>
 </body>
 </html>
